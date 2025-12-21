@@ -9,44 +9,47 @@ bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 def download_and_send(url, message):
-    # Yuklash sozlamalari
+    # Faqat 45MB gacha bo'lgan videolarni yuklash (Render limiti uchun)
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
-        'outtmpl': 'video.mp4',
-        'max_filesize': 48000000, # 48MB limit
+        'outtmpl': '/tmp/video.mp4', # Vaqtinchalik papkaga saqlash
+        'max_filesize': 45000000,
         'quiet': True
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         
-        with open('video.mp4', 'rb') as video:
-            bot.send_video(message.chat.id, video, caption="Tayyor! ✅ @sizning_botingiz")
-        os.remove('video.mp4') # Serverni tozalash
+        with open('/tmp/video.mp4', 'rb') as video:
+            bot.send_video(message.chat.id, video, caption="Tayyor! ✅")
+        if os.path.exists('/tmp/video.mp4'):
+            os.remove('/tmp/video.mp4')
     except Exception as e:
         bot.reply_to(message, "Xatolik: Video juda katta yoki havola noto'g'ri.")
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Salom! Menga Youtube, Instagram yoki Pinterest havolasini yuboring. 📥")
+    bot.reply_to(message, "Menga Youtube, Instagram yoki Pinterest havolasini yuboring! 📥")
 
 @bot.message_handler(func=lambda m: True)
 def handle_link(message):
     links = ['youtube.com', 'youtu.be', 'instagram.com', 'pinterest.com', 'pin.it']
     if any(domain in message.text for domain in links):
-        bot.reply_to(message, "Xabar qabul qilindi. Yuklashni boshladim... ⏳")
+        bot.reply_to(message, "Yuklashni boshladim... ⏳")
         download_and_send(message.text, message)
 
 @app.route('/' + TOKEN, methods=['POST'])
 def getMessage():
-    bot.process_new_updates([telebot.types.Update.de_json(request.get_data().decode('utf-8'))])
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
     return "!", 200
 
 @app.route("/")
 def webhook():
     bot.remove_webhook()
     bot.set_webhook(url=URL + '/' + TOKEN)
-    return "Downloader Bot Tayyor!", 200
+    return "Downloader Bot Active!", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
